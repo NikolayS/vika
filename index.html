@@ -6,7 +6,7 @@
 html,body{margin:0;height:100%;background:#1a0f1d;overflow:hidden;font-family:'Fredoka',system-ui,sans-serif}
 #stage{position:absolute;left:50%;top:50%;width:min(100vw,177.78vh);aspect-ratio:16/9;transform:translate(-50%,-50%);overflow:hidden}
 #stage canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block}
-.bubble{position:absolute;transform:translate(-50%,-100%) scale(.85);background:#fff;color:#4a2b45;border-radius:28px;padding:.45em 1em;font-weight:700;font-size:clamp(12px,1.9vw,28px);max-width:30%;text-align:center;line-height:1.15;opacity:0;transition:opacity .18s,transform .25s cubic-bezier(.3,1.6,.5,1);pointer-events:none;box-shadow:0 8px 24px rgba(80,20,60,.25)}
+.bubble{position:absolute;transform:translate(-50%,-100%) scale(.85);background:#fff;color:#4a2b45;border-radius:28px;padding:.45em 1em;font-weight:700;font-size:clamp(12px,1.9vw,28px);width:max-content;max-width:30%;text-align:center;line-height:1.15;opacity:0;transition:opacity .18s,transform .25s cubic-bezier(.3,1.6,.5,1);pointer-events:none;box-shadow:0 8px 24px rgba(80,20,60,.25)}
 .bubble::after{content:"";position:absolute;left:50%;bottom:-12px;margin-left:-11px;border:11px solid transparent;border-top:13px solid #fff;border-bottom:0}
 .bubble.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
 #bK{border:3px solid #ff5c8a}#bM{border:3px solid #ff9ec8}#bC{border:3px solid #7cc4ff}
@@ -2427,7 +2427,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'h
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.92;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.prepend(renderer.domElement);
@@ -2451,9 +2451,9 @@ const sparkles = createSparkles(scene), confetti = createConfetti(scene), floate
 // post
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bokeh = new BokehPass(scene, camera, { focus: 6, aperture: 0.0012, maxblur: 0.006 });
-composer.addPass(bokeh);
-const bloom = new UnrealBloomPass(new THREE.Vector2(1280, 720), 0.22, 0.5, 0.9);
+const bokeh = new BokehPass(scene, camera, { focus: 6, aperture: 0.0005, maxblur: 0.003 });
+composer.addPass(bokeh); if (params.has('nobokeh')) bokeh.enabled = false;
+const bloom = new UnrealBloomPass(new THREE.Vector2(1280, 720), 0.12, 0.5, 1.0);
 composer.addPass(bloom);
 const grade = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, time: { value: 0 }, vig: { value: 0.32 }, warm: { value: 0 } },
@@ -2461,12 +2461,12 @@ const grade = new ShaderPass({
   fragmentShader: `uniform sampler2D tDiffuse;uniform float time,vig,warm;varying vec2 vUv;
     float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
     void main(){vec4 c=texture2D(tDiffuse,vUv);
-      float l=dot(c.rgb,vec3(.299,.587,.114)); c.rgb=mix(vec3(l),c.rgb,1.18); c.rgb=(c.rgb-.5)*1.08+.5; c.rgb=max(c.rgb,0.);
+      float l=dot(c.rgb,vec3(.299,.587,.114)); c.rgb=mix(vec3(l),c.rgb,mix(1.18,1.,warm)); c.rgb=(c.rgb-.5)*1.08+.5; c.rgb=max(c.rgb,0.);
       c.rgb*=mix(vec3(1.),vec3(1.06,1.,.92),warm);
       vec2 d=vUv-.5; c.rgb*=1.-vig*dot(d,d)*1.6;
       c.rgb+=(h(vUv*vec2(1280.,720.)+time)-.5)*.012; gl_FragColor=c;}`
 });
-composer.addPass(grade);
+composer.addPass(grade); if (params.has('nograde')) grade.enabled = false;
 composer.addPass(new OutputPass());
 const smaa = new SMAAPass(1280, 720); composer.addPass(smaa);
 
@@ -2538,11 +2538,11 @@ function dance(t, t0, isK) {
   } else if (u < 11) {
     const a0 = isK ? Math.PI : 0, a = a0 + 2 * Math.PI * sm((u - 7) / 4);
     o.x = r * Math.cos(a); o.z = CZ + .8 * r * Math.sin(a);
-    o.rot = lerp(0, -a, sm((u - 7) / .6));
+    o.rot = lerp(0, clamp(Math.atan2(-Math.sin(a), .8 * Math.cos(a)), -1.1, 1.1), sm((u - 7) / .6));
     p.armL = isK ? 2.6 : 1.5; p.armR = isK ? 1.5 : 2.6; o.y = .06 * b;
   } else {
-    const a0 = isK ? Math.PI : 0, fEnd = -(a0 + 2 * Math.PI);
-    const n = Math.atan2(Math.sin(fEnd), Math.cos(fEnd)); o.rot = lerp(n, 0, sm((u - 11) / .6));
+    const a0 = isK ? Math.PI : 0;
+    const n = clamp(Math.atan2(-Math.sin(a0), .8 * Math.cos(a0)), -1.1, 1.1); o.rot = lerp(n, 0, sm((u - 11) / .6));
     p.bend = .45 * pulse(u, 12.3, .55); p.tiptoe = 1 - sm((u - 11) / .8); o.y = -.03 * pulse(u, 12.3, .5);
     p.armL = p.armR = lerp(1.3, .2, sm((u - 13) / .8)); p.happyEyes = 1;
   }
@@ -2550,8 +2550,8 @@ function dance(t, t0, isK) {
 }
 const chorus = t => win(t, 27, 41) ? 27 : win(t, CH2, CH2 + 14) ? CH2 : null;
 
-const KX = [[0, -8.5], [4.4, -1.7], [7.8, -1.7], [9.6, -0.62], [11.0, -0.62], [12.2, -2.2], [26.2, -2.2], [27, -1.3], [41, -1.3], [42.4, -1.5], [96.6, -1.5], [97.5, -1.3], [111.5, -1.3], [113.5, -0.7]];
-const MX = [[0, 4.2], [7.9, 4.2], [9.6, .62], [11.0, .62], [12.2, 2.2], [19, 2.2], [20, -.9], [26.2, -.9], [27, 1.3], [41, 1.3], [42.4, 0.0], [96.6, 0.0], [97.5, 1.3], [111.5, 1.3], [113.5, .55]];
+const KX = [[0, -8.5], [4.4, -1.7], [7.8, -1.7], [9.6, -0.62], [11.0, -0.62], [12.2, -2.2], [26.2, -2.2], [27, -1.3], [41, -1.3], [42.4, -1.5], [74.5, -1.5], [75.2, -2.1], [96.6, -2.1], [97.5, -1.3], [111.5, -1.3], [113.5, -0.85]];
+const MX = [[0, 4.2], [6.0, 4.2], [6.3, 2.6], [7.9, 2.6], [9.6, .62], [11.0, .62], [12.2, 2.2], [19, 2.2], [20, -.6], [26.2, -.6], [27, 1.3], [41, 1.3], [42.4, 0.0], [74.5, 0.0], [75.2, .6], [96.6, .6], [97.5, 1.3], [111.5, 1.3], [113.5, .62]];
 function stateK(t) {
   const s = {
     x: tr(t, KX), z: CZ, y: 0,
@@ -2582,14 +2582,14 @@ function stateK(t) {
   if (win(t, 80.7, 86.2)) { p.sad = t < 84 ? 1 : 1 - sm((t - 84) / 1.6); p.armL = p.armR = .1; }
   if (win(t, 94.0, 95.0)) { p.armLFwd = 1.0; }
   if (win(t, 95.0, 97)) { p.happyEyes = 1; s.y = hop(t, 95.2, 96.4, 1.67, .3); p.armL = 2.4; p.armR = 2.4; }
-  if (t >= 113.5) { const e = sm((t - 113.5) / .8); p.armLFwd = 1.1 * e; p.armL = .9 * e; p.lean = .14 * e * (1 - sm((t - 122) / 1)); p.happyEyes = e; }
+  if (t >= 113.5) { const e = sm((t - 113.5) / .8); p.armLFwd = 1.1 * e; p.armL = .9 * e; p.lean = .08 * e * (1 - sm((t - 122) / 1)); p.happyEyes = e; }
   const c = chorus(t); if (c !== null) { const d = dance(t, c, true); s.x = d.x; s.z = d.z; s.y = d.y; s.rot = d.rot; Object.assign(p, d.pose); p.walk = 0; }
   return s;
 }
 function stateM(t) {
   const s = {
-    x: tr(t, MX), z: tr(t, [[0, -2.7], [7.9, -2.7], [9.2, CZ]]),
-    y: tr(t, [[0, -2.2], [6.15, -2.2], [6.5, 0]]),
+    x: tr(t, MX), z: tr(t, [[0, -2.9], [6.0, -2.9], [6.3, -1.9], [7.9, -1.9], [9.2, CZ]]),
+    y: tr(t, [[0, -2.2], [6.0, -2.2], [6.3, 0]]),
     rot: tr(t, [[6.2, 0], [7.9, 0], [8.1, -1.0], [9.4, -1.0], [9.8, -.85], [11.1, -.85], [11.4, 1.2], [12.0, 1.2], [12.4, -.9], [18.9, -.9], [19.1, -1.4], [19.9, -1.4], [20.2, -.6], [26.2, -.6], [26.4, 1.1], [27, -.35],
     [41, 0], [41.4, -1.2], [42.4, -1.2], [42.8, .4], [44.6, .4], [45.2, .5], [50.4, .5], [52.4, .9], [53.6, .2], [55.6, -.2], [56, -.9], [58.6, -.9], [59.5, .4], [67, .4], [68.4, -.9], [74.5, -.9], [75.2, .0], [77.2, .2], [77.6, -.2], [80.6, .1], [82.2, .3], [86.4, .4], [90.4, .4], [90.8, -.8], [96.6, -.8], [97.5, -.35],
     [111.5, -.3], [111.9, -1.0], [113.2, -1.0], [113.6, -.5]]),
@@ -2617,23 +2617,23 @@ function stateM(t) {
   if (win(t, 89.4, 90.4)) { p.armRFwd = 1.0; }
   if (win(t, 90.7, 94.6)) { p.armRFwd = 1.1; p.armR = .5; p.happyEyes = t > 92.5 ? 1 : 0; }
   if (win(t, 95.0, 97)) { p.happyEyes = 1; }
-  if (t >= 113.5) { const e = sm((t - 113.5) / .8); p.armRFwd = 1.1 * e; p.armR = .9 * e; p.lean = -.14 * e * (1 - sm((t - 122) / 1)); p.eyesClosed = e * .9; }
+  if (t >= 113.5) { const e = sm((t - 113.5) / .8); p.armRFwd = 1.1 * e; p.armR = .9 * e; p.lean = -.08 * e * (1 - sm((t - 122) / 1)); p.eyesClosed = e * .9; }
   const c = chorus(t); if (c !== null) { const d = dance(t, c, false); s.x = d.x; s.z = d.z; s.y = d.y; s.rot = d.rot; Object.assign(p, d.pose); p.walk = 0; }
   return s;
 }
 // Cinnamoroll: flies in/out. path keys of [t, x, y, z]
-const CPATH = [[44.6, 8, 7, -5], [45.9, 1.6, 0, .7], [51.5, 1.6, 0, .7], [52.3, 3.1, 1.3, .5], [55.5, 10, 8, -7],
-[58.8, 9, 7, -5], [60.1, 1.6, 0, .7], [77.9, 1.6, 0, .7], [78.7, -.6, 1.2, -.1], [79.3, -.6, 1.3, -.1], [81.3, -9, 8, -7],
-[86.2, -9, 7, -5], [87.5, 1.6, 0, .7], [97.4, 1.6, 0, .7]];
-const CPATH2 = [[111.5, 2.6, 1.6, CZ], [113.4, 1.75, 0, .2], [117.9, 1.75, 0, .2], [118.6, 1.3, 0, .05]];
+const CPATH = [[44.6, 8, 7, -5], [45.35, 2.0, 1.2, 1.5], [45.9, 1.6, 0, .7], [51.5, 1.6, 0, .7], [51.8, 2.4, 2.7, .9], [52.1, 3.2, 2.55, -.2], [52.3, 3.2, 2.55, -.2], [55.5, 10, 8, -7],
+[58.8, 9, 7, -5], [60.1, 1.6, 0, .7], [75.0, 1.6, 0, .7], [75.6, 2.2, 0, .7], [77.9, 2.2, 0, .7], [78.7, -.6, 1.2, -.1], [79.3, -.6, 1.3, -.1], [81.3, -9, 8, -7],
+[86.2, -9, 7, -5], [87.5, 2.2, 0, .7], [97.4, 2.4, 0, 1.4]];
+const CPATH2 = [[111.5, 2.6, 1.6, CZ], [113.4, 1.75, 0, .2], [117.9, 1.75, 0, .2], [118.6, 1.55, 0, .05]];
 function trP(t, k) { return V(tr(t, k.map(a => [a[0], a[1]])), tr(t, k.map(a => [a[0], a[2]])), tr(t, k.map(a => [a[0], a[3]]))); }
 function stateC(t) {
   const s = { vis: win(t, 44.6, 55.5) || win(t, 58.8, 81.3) || t >= 86.2, rot: -.5, pose: { blush: .5 } }, p = s.pose;
   let pos;
   if (t >= CH2 && t < 111.5) { // fly loops around the dancers
     const u = t - CH2, a = u * 2 * Math.PI / 7 + .3;
-    pos = V(2.6 * Math.cos(a), 1.6 + .35 * Math.sin(2 * a), CZ + 1.9 * Math.sin(a)); s.rot = Math.atan2(-Math.sin(a), Math.cos(a) * .73); p.fly = 1; p.happyEyes = .8;
-    if (u < .8) pos.lerp(V(1.6, 0, .7), 1 - sm(u / .8));
+    pos = V(3.2 * Math.cos(a), 2.3 + .35 * Math.sin(2 * a), CZ + 2.6 * Math.sin(a)); s.rot = Math.atan2(-Math.sin(a), Math.cos(a) * .81); p.fly = 1; p.happyEyes = .8;
+    if (u < 1.2) pos.lerp(V(2.4, 0, 1.4), 1 - sm(u / 1.2));
   } else if (t >= 111.5) { pos = trP(t, CPATH2); p.fly = t < 113.4 ? 1 : 0; s.rot = -.45; }
   else pos = trP(t, CPATH);
   s.pos = pos;
@@ -2645,7 +2645,7 @@ function stateC(t) {
   if (win(t, 45.9, 48.7)) { p.armR = 2.5 + .35 * Math.sin(t * 12); p.happyEyes = 1; }
   if (win(t, 48.8, 50.4)) { p.happyEyes = 1; }
   if (win(t, 50.5, 51.6)) { p.smug = 1; s.rot = .9; }
-  if (win(t, 52.3, 55.5)) { p.armL = p.armR = 2.5; p.happyEyes = 1; }
+  if (win(t, 52.0, 55.5)) { p.armL = p.armR = 2.5; p.happyEyes = 1; p.fly = 0; }
   if (win(t, 60.2, 63.7)) { p.sorry = 1; p.fly = 0; }
   if (win(t, 63.8, 65.5)) { p.sad = .6; }
   if (win(t, 65.5, 67.4)) { p.armR = 2.3; p.happyEyes = .5; }
@@ -2702,33 +2702,34 @@ function placeItems(t) {
 }
 
 // ================= camera director =================
-const mid = () => K.root.position.clone().add(M.root.position).multiplyScalar(.5);
-const kp = () => K.root.position.clone(), mp = () => M.root.position.clone(), cp = () => C.root.position.clone();
-const trio = () => K.root.position.clone().add(M.root.position).add(C.root.visible ? C.root.position : M.root.position).multiplyScalar(1 / 3);
+const mid = () => flat(K.root.position.clone().add(M.root.position).multiplyScalar(.5));
+const flat = v => { v.y = 0; return v; };
+const kp = () => flat(K.root.position.clone()), mp = () => flat(M.root.position.clone()), cp = () => C.root.position.clone();
+const trio = () => flat(K.root.position.clone().add(M.root.position).add(C.root.visible ? C.root.position : M.root.position).multiplyScalar(1 / 3));
 const orbit = (r, h, a, c = V(0, 0, CZ)) => V(c.x + r * Math.sin(a), h, c.z + r * Math.cos(a));
 const BUSH = V(4.2, 0, -2.0);
 const SHOTS = [
   [0, u => ({ pos: V(lerp(-4, -2.2, sm(u)), lerp(6.5, 1.9, sm(u)), lerp(17, 8.5, sm(u))), look: V(lerp(0, kp().x * .6, sm(u)), lerp(2.5, 1.2, sm(u)), 0), fov: lerp(42, 34, sm(u)) })],
   [4.6, u => ({ pos: kp().add(V(1.6 + .3 * u, 1.5, 5.2 - .3 * u)), look: kp().add(V(0, 1.3, 0)), fov: 30 })],
-  [6.2, u => ({ pos: V(BUSH.x - .9 - .3 * u, 1.5, 3.4 - .4 * u), look: V(BUSH.x, 1.5, -2.7), fov: 30 })],
+  [6.2, u => ({ pos: V(BUSH.x - .9 - .3 * u, 1.5, 3.4 - .4 * u), look: V(2.9, 1.2, -1.9), fov: 30 })],
   [7.8, u => ({ pos: V(1.2, 1.8 - .2 * u, 8.4 - 1.8 * u), look: mid().add(V(0, 1.15, 0)), fov: 36 })],
-  [11.0, u => ({ pos: V(.6 * u, 2.4, 10 - .6 * u), look: V(0, 1.3, 0), fov: 38 })],
-  [14.2, u => ({ pos: V(-3.9, 1.8, 2.6 + .2 * u), look: mp().add(V(0, 1.2, 0)), fov: 32 })],
+  [11.0, u => ({ pos: V(.6 * u, 2.0, 7.5 - .4 * u), look: V(0, 1.3, 0), fov: 34 })],
+  [14.2, u => ({ pos: V(-4.6, 1.9, 4.6), look: mid().add(V(.6, 1.2, 0)), fov: 34 })],
   [17.2, u => ({ pos: kp().add(V(1.5, 1.55, 4.4 - .3 * u)), look: kp().add(V(0, 1.45, 0)), fov: 30 })],
   [19.0, u => ({ pos: V(-1.6, 1.6, 6.6), look: mid().add(V(0, 1.15, 0)), fov: 34 })],
   [21.8, u => ({ pos: kp().add(V(1.2, .5, 3.6)), look: kp().add(V(0, 1.5, 0)), fov: 36 })],
   [23.0, u => ({ pos: V(-1.5, 1.8 - .2 * u, 6.2 - .6 * u), look: mid().add(V(0, 1.1, 0)), fov: 34 })],
-  [27.0, u => ({ pos: orbit(5.5, .7, lerp(.35, -.1, u)), look: V(0, 1.4, CZ), fov: 36 })],
+  [27.0, u => ({ pos: orbit(5.5, 1.05, lerp(.35, -.1, u)), look: V(0, 1.4, CZ), fov: 36 })],
   [30.0, u => ({ pos: orbit(6.5, 2.6, lerp(-.6, .6, u)), look: V(0, 1.1, CZ), fov: 34 })],
   [34.0, u => ({ pos: orbit(8, lerp(5, 3, u), lerp(.8, -.8, u)), look: V(0, 1.0, CZ), fov: 34 })],
   [38.0, u => ({ pos: V(0, 1.6 + .3 * u, 7.5 + 1.5 * u), look: V(0, 1.2, 0), fov: 36 })],
   // --- Cinnamoroll & ice cream ---
   [41.0, u => ({ pos: V(-2.2 + u, 1.7, 8.5 + .5 * u), look: V(1.0, 1.2, -.2), fov: 38 })],
-  [44.4, u => ({ pos: V(-.5, 1.3, 8), look: cp().add(V(0, 1, 0)).lerp(V(1, 1.2, 0), .3), fov: 40 })],
+  [44.4, u => ({ pos: V(-.5, 1.4, 8.5), look: cp().add(V(0, 1, 0)).lerp(V(1.2, 1.4, 0), .65), fov: 42 })],
   [45.9, u => ({ pos: cp().add(V(-.7, 1.35, 4.6 - .3 * u)), look: cp().add(V(0, 1.15, 0)), fov: 30 })],
   [48.7, u => ({ pos: mid().add(V(.4, 1.5, 5.2)), look: mid().add(V(0, 1.2, 0)), fov: 32 })],
   [50.5, u => ({ pos: cp().add(V(.6, 1.4, 4.2)), look: cp().add(V(0, 1.2, 0)), fov: 30 })],
-  [51.6, u => ({ pos: V(-.5, 1.8, 9.5), look: V(lerp(2, 4.5, u), lerp(1.4, 3.2, u), lerp(0, -1.5, u)), fov: 40 })],
+  [51.6, u => ({ pos: V(-.5, 1.8, 9.5), look: V(lerp(2, 4.5, u), lerp(1.4, 2.2, u), lerp(0, -1.5, u)), fov: 40 })],
   [53.8, u => ({ pos: kp().add(V(.6, 1.4, 4.5)), look: kp().add(V(0, 1.3, 0)), fov: 30 })],
   [55.8, u => ({ pos: mid().add(V(0, 1.5, 5.2 - .3 * u)), look: mid().add(V(0, 1.2, 0)), fov: 32 })],
   [58.8, u => ({ pos: V(0, 1.9, 9.4), look: cp().add(V(0, 1, 0)).lerp(V(.5, 1.2, 0), .4), fov: 40 })],
@@ -2739,17 +2740,17 @@ const SHOTS = [
   // --- donuts ---
   [74.8, u => ({ pos: V(.2, 1.9, 7.6 - .4 * u), look: V(-.2, 1.0, -.3), fov: 34 })],
   [77.4, u => ({ pos: cp().add(V(.5, 1.4, 4.3)), look: cp().add(V(0, 1.2, 0)), fov: 30 })],
-  [78.3, u => ({ pos: V(.5, 2.0, 9), look: cp().add(V(0, .6, 0)).lerp(V(0, 1.2, 0), .35), fov: 40 })],
+  [78.7, u => ({ pos: V(.5, 2.0, 9), look: cp().add(V(0, .6, 0)).lerp(V(0, 1.2, 0), .35), fov: 40 })],
   [80.7, u => ({ pos: kp().add(V(.6, 1.4, 4.5)), look: kp().add(V(0, 1.3, 0)), fov: 30 })],
   [82.3, u => ({ pos: mp().add(V(.5, .65, 4.2)), look: mp().add(V(0, 1.5, 0)), fov: 34 })],
   [86.2, u => ({ pos: V(0, 1.8, 9), look: cp().add(V(0, 1, 0)).lerp(V(0, 1.2, 0), .4), fov: 40 })],
   [87.6, u => ({ pos: V(.1, 1.6, 6.8 - .3 * u), look: V(0, 1.15, .3), fov: 34 })],
   [90.7, u => ({ pos: mp().add(V(-.5, 1.4, 4.4)), look: mp().add(V(0, 1.25, 0)), fov: 30 })],
-  [93.3, u => ({ pos: mid().add(V(0, 1.4, 4.2)), look: mid().add(V(0, 1.1, 0)), fov: 30 })],
+  [93.3, u => ({ pos: mid().add(V(0, 1.4, 4.4)), look: mid().add(V(0, .85, 0)), fov: 32 })],
   [95.2, u => ({ pos: kp().add(V(.6, 1.4, 4.6)), look: kp().add(V(0, 1.35, 0)), fov: 30 })],
   // --- chorus 2 (all three) ---
   [CH2, u => ({ pos: orbit(7.5, lerp(1.2, 3.5, u), lerp(-.4, .4, u)), look: V(0, 1.4, CZ), fov: 38 })],
-  [CH2 + 3.5, u => ({ pos: orbit(5.2, .6, lerp(.9, .2, u)), look: V(0, 1.6, CZ), fov: 40 })],
+  [CH2 + 3.5, u => ({ pos: orbit(5.6, 1.0, lerp(.9, .2, u)), look: V(0, 1.6, CZ), fov: 40 })],
   [CH2 + 7, u => ({ pos: orbit(6, lerp(7, 5, u), lerp(0, 1.2, u)), look: V(0, .9, CZ), fov: 42 })],
   [CH2 + 10.5, u => ({ pos: V(0, 1.5 + .2 * u, 7.5 + u), look: V(0, 1.3, CZ), fov: 36 })],
   // --- outro ---
@@ -2758,16 +2759,23 @@ const SHOTS = [
   [119.8, u => ({ pos: V(.35, lerp(1.5, 4.8, sm(u)), lerp(6.5, 12.5, sm(u))), look: V(.35, lerp(1.4, 2.8, sm(u)), 0), fov: 36 })],
 ].map(s => [snap(s[0]), s[1]]);
 SHOTS[0][0] = 0;
+for (let i = SHOTS.length - 2; i >= 1; i--) if (SHOTS[i + 1][0] - SHOTS[i][0] < 1.0) SHOTS.splice(i, 1); // no jarring micro-shots
 const SHAKES = [[18.4, .06], [52.3, .02], [75.0, .02]];
-function directCamera(t) {
+const camState = { shot: -1, pos: new THREE.Vector3(), look: new THREE.Vector3(), t: 0 };
+function directCamera(t, dt = 1 / 60) {
   let i = 0; while (i < SHOTS.length - 1 && t >= SHOTS[i + 1][0]) i++;
   const s0 = SHOTS[i][0], s1 = i < SHOTS.length - 1 ? SHOTS[i + 1][0] : END;
   const sh = SHOTS[i][1](clamp((t - s0) / (s1 - s0)), t);
   let shake = 0; for (const [c, a] of SHAKES) if (t >= c) shake += a * Math.exp(-(t - c) * 6);
+  // smooth within a shot (critically damped follow); hard cut on shot change or seek
+  if (camState.shot !== i || Math.abs(t - camState.t) > .4) { camState.pos.copy(sh.pos); camState.look.copy(sh.look); camState.shot = i; }
+  else { camState.pos.lerp(sh.pos, 1 - Math.exp(-dt * 7)); camState.look.lerp(sh.look, 1 - Math.exp(-dt * 5)); }
+  camState.t = t; sh.pos = camState.pos.clone(); sh.look = camState.look.clone();
   const hand = .012;
   camera.position.copy(sh.pos).add(V(hand * Math.sin(t * 1.3) + shake * Math.sin(t * 61), hand * Math.sin(t * 1.7 + 1) + shake * Math.sin(t * 53 + 2), 0));
   camera.lookAt(sh.look); camera.fov = sh.fov; camera.updateProjectionMatrix();
   bokeh.uniforms.focus.value = camera.position.distanceTo(sh.look);
+  return sh.look;
 }
 
 // ================= sparkle events =================
@@ -2776,12 +2784,18 @@ const SPARK = [[11.8, () => L['K.hands']().p], [18.4, () => L['K.bow']().p], [45
 [93.6, () => L['M.R']().p], [94.6, () => L['K.L']().p], [96.5, () => TABLE_POS.clone().add(V(0, .8, 0))], [97.5, () => L['K.L']().p], [119.8, () => trio().add(V(0, 2.9, 0))]];
 
 // ================= frame =================
+const rotS = {};
+function smoothRot(key, target, dt) { // damped yaw so turns never snap
+  if (rotS[key] === undefined || dt <= 0 || dt > .2) return rotS[key] = target;
+  let d = target - rotS[key]; d = Math.atan2(Math.sin(d), Math.cos(d));
+  return rotS[key] += d * (1 - Math.exp(-dt * 12));
+}
 let lastT = -1;
 function frame(t, dt) {
   const ks = stateK(t), ms = stateM(t), cs = stateC(t);
-  K.root.position.set(ks.x, ks.y, ks.z); K.root.rotation.y = ks.rot;
-  M.root.position.set(ms.x, ms.y, ms.z); M.root.rotation.y = ms.rot; M.root.visible = t > 6.1;
-  C.root.visible = cs.vis; C.root.position.copy(cs.pos); C.root.rotation.y = cs.rot;
+  K.root.position.set(ks.x, ks.y, ks.z); K.root.rotation.y = smoothRot('K', ks.rot, dt);
+  M.root.position.set(ms.x, ms.y, ms.z); M.root.rotation.y = smoothRot('M', ms.rot, dt); M.root.visible = t > 5.95;
+  C.root.visible = cs.vis; C.root.position.copy(cs.pos); C.root.rotation.y = smoothRot('C', cs.rot, dt);
   const spk = speaking(t), w = who(spk);
   ks.pose.talk = w === 'k' ? 1 : 0; ms.pose.talk = w === 'm' ? 1 : 0; cs.pose.talk = w === 'c' ? 1 : 0;
   K.update(t, dt, ks.pose); M.update(t, dt, ms.pose); C.update(t, dt, cs.pose);
@@ -2791,7 +2805,7 @@ function frame(t, dt) {
   cart.visible = win(t, 40.5, 55.5);
   const cpos = cartPos(t);
   if (cpos) { cart.position.copy(cpos); cart.rotation.set(0, 0, 0); if (cart.wheels) for (const wh of cart.wheels) wh.rotation.z = -cpos.x / .25; }
-  else { const h = L['C.hands']().p; cart.position.copy(h).add(V(0, -2.45, -.35)); cart.rotation.set(.12 * Math.sin(t * 5), 0, .15 * Math.sin(t * 3.3)); }
+  else { cart.position.copy(C.root.position).add(V(0, -2.55, 0)); cart.rotation.set(.12 * Math.sin(t * 5), 0, .15 * Math.sin(t * 3.3)); }
   if (cart.bell) cart.bell.rotation.z = t > 41.2 ? .5 * Math.sin(t * 30) * Math.exp(-(t - 41.2) * 2) : 0;
   const ts = win(t, 75.0, 96.8) ? (t < 96.5 ? sm((t - 75.0) / .3) * (1 + .15 * pulse(t, 75.35, .1)) : 1 - sm((t - 96.5) / .3)) : 0;
   table.visible = ts > .001; table.position.copy(TABLE_POS); table.scale.setScalar(Math.max(ts, .001));
@@ -2805,16 +2819,16 @@ function frame(t, dt) {
   }
   for (const [c, f] of SPARK) if (c > lastT && c <= t) sparkles.burst(f(), { count: 26 });
   const ch = chorus(t);
-  if (ch !== null) for (const b of BEATS) if (b > lastT && b <= t && Math.round((b - ch) / .645) % 3 === 0) sparkles.burst(V((Math.random() - .5) * 4, 2 + Math.random(), CZ + (Math.random() - .5) * 2), { count: 14 });
+  if (ch !== null) for (const b of BEATS) if (b > lastT && b <= t && Math.round((b - ch) / .627) % 3 === 0) sparkles.burst(V((Math.random() - .5) * 4, 2 + Math.random(), CZ + (Math.random() - .5) * 2), { count: 14 });
   floaters.setActive(ch !== null || win(t, 117, 124)); floaters.update(t, dt, V(0, 1, CZ));
   confetti.setActive(win(t, CH2, CH2 + 14.5)); confetti.update(t, dt, V(0, 0, CZ));
   sparkles.update(dt);
-  const sunset = tr(t, [[110, 0], [116, .6], [123.5, 1]]);
+  const sunset = tr(t, [[110, 0], [116, .55], [123.5, .7]]);
   env.update(t, dt, { sunset, beat: ch !== null ? beat(t) : 0, wind: 1 });
   env.setRainbow?.(Math.max(sm((t - 28) / 2) * (1 - sm((t - 39) / 2)), sm((t - CH2 - 1) / 2) * (1 - sm((t - CH2 - 13) / 1.5))));
   grade.uniforms.time.value = t; grade.uniforms.warm.value = sunset;
 
-  directCamera(t);
+  directCamera(t, dt);
   composer.render(dt);
   updateOverlays(t, spk);
   lastT = t;
@@ -2825,7 +2839,10 @@ const bK = document.getElementById('bK'), bM = document.getElementById('bM'), bC
 function bubble(el, rig, id) {
   if (!id) { el.classList.remove('show'); return; }
   const p = wp(rig.anchors.headTop).add(V(0, .55, 0)).project(camera);
-  const x = clamp((p.x * .5 + .5) * 100, 14, 86), y = clamp((-p.y * .5 + .5) * 100, 18, 90);
+  if (p.z > 1 || Math.abs(p.x) > 1.15 || p.y > 1.4) { el.classList.remove('show'); return; } // speaker off-screen
+  if (el.textContent !== LINES[id]) el.textContent = LINES[id];
+  const minY = el.offsetHeight / stage.clientHeight * 100 + 2;
+  const x = clamp((p.x * .5 + .5) * 100, 20, 80), y = clamp((-p.y * .5 + .5) * 100, minY, 90);
   el.style.left = x + '%'; el.style.top = y + '%';
   if (el.textContent !== LINES[id]) el.textContent = LINES[id];
   el.classList.add('show');
@@ -2838,49 +2855,162 @@ function updateOverlays(t, spk) {
 }
 
 // ================= audio & loop =================
+// Web Audio engine: the song, voices and sfx are scheduled sample-accurately against ONE clock (AudioContext),
+// and the animation reads its time from that same clock => picture and sound can't drift apart.
+// Falls back to <audio> elements when fetch() is unavailable (file://).
+const ACtx = window.AudioContext || window.webkitAudioContext;
+const actx = ACtx ? new ACtx() : null;
+const BUF = {};
+const AUDIO_IDS = ['song2', ...new Set(VOICE.map(v => v[0])), ...new Set(SFX.map(s => s[0]))];
+let audioReady = false, useWebAudio = !!actx;
+const overlay = document.getElementById('overlay'), playBtn = document.getElementById('play');
+async function loadAudio() {
+  if (!useWebAudio) { audioReady = true; enablePlay(); return; }
+  const get = async id => {
+    const r = await fetch(AUDIO + id + '.mp3'); if (!r.ok) throw new Error(id);
+    const ab = await r.arrayBuffer();
+    BUF[id] = await new Promise((res, rej) => actx.decodeAudioData(ab, res, rej));
+    DUR[id] = BUF[id].duration;
+    if (playing && id !== 'song2') scheduleCue(id); // arrived after Play: slot it into the running schedule
+  };
+  try { await get('song2'); } catch (e) { console.warn('web audio unavailable, falling back', e); useWebAudio = false; }
+  audioReady = true; enablePlay();
+  if (useWebAudio) for (const id of AUDIO_IDS.slice(1)) { try { await get(id); } catch (e) { console.warn('missing', id); } }
+}
+function enablePlay() { playBtn.disabled = false; if (playBtn.dataset.wait) playBtn.textContent = '▶ Play!'; }
+playBtn.disabled = true; playBtn.dataset.wait = 1; playBtn.textContent = 'Loading…';
+loadAudio();
+
+// --- web audio scheduling ---
+let songGain, voiceGain, sfxGain, sources = [], t0 = 0;
+function schedule() {
+  for (const s of sources) { try { s.stop(); } catch (e) { } } sources = [];
+  songGain = actx.createGain(); voiceGain = actx.createGain(); sfxGain = actx.createGain();
+  songGain.connect(actx.destination); voiceGain.connect(actx.destination); sfxGain.connect(actx.destination);
+  voiceGain.gain.value = voicesOn ? 1 : 0; sfxGain.gain.value = .55;
+  t0 = actx.currentTime + .15;
+  const g = songGain.gain; g.setValueAtTime(.85, t0);
+  playBuf('song2', 0, songGain);
+  for (const id of new Set([...VOICE.map(v => v[0]), ...SFX.map(x => x[0])])) if (BUF[id]) scheduleCue(id);
+}
+function playBuf(id, at, gain) {
+  const when = t0 + at; if (when < actx.currentTime + .01) return; // already passed
+  const s = actx.createBufferSource(); s.buffer = BUF[id]; s.connect(gain); s.start(when); sources.push(s);
+}
+function scheduleCue(id) {
+  for (const [vid, c] of VOICE) if (vid === id) {
+    playBuf(id, c, voiceGain);
+    if (voicesOn && t0 + c > actx.currentTime) { const g = songGain.gain; g.setTargetAtTime(.4, t0 + c - .1, .08); g.setTargetAtTime(.85, t0 + c + DUR[id] + .1, .25); }
+  }
+  for (const [sid, c] of SFX) if (sid === id) playBuf(id, c, sfxGain);
+}
+function waClock() {
+  const ts = actx.getOutputTimestamp ? actx.getOutputTimestamp() : null;
+  let ct = actx.currentTime;
+  if (ts && ts.contextTime > 0 && actx.state === 'running') ct = ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+  return ct - t0;
+}
+
+// --- <audio> fallback ---
 const A = f => { const a = new Audio(AUDIO + f + '.mp3'); a.preload = 'auto'; return a; };
-const song = A('song2');
-const voices = {}, sfx = {};
-for (const [id] of VOICE) voices[id] = A(id);
-for (const [id] of SFX) if (!sfx[id]) sfx[id] = A(id);
-let playing = false, clock0 = 0, pausedAt = 0, paused = false;
-function now() { return paused ? pausedAt : (performance.now() - clock0) / 1000; }
-function fireAudio(prev, t) {
+let song = null; const voices = {}, sfx = {};
+function initFallback() {
+  if (song) return; song = A('song2');
+  for (const [id] of VOICE) voices[id] = A(id);
+  for (const [id] of SFX) if (!sfx[id]) sfx[id] = [A(id), A(id)];
+}
+let fbClock0 = null, fbPrev = 0, sfxFlip = 0;
+function fbClock() {
+  if (fbClock0 === null) { if (song.currentTime > 0 && !song.paused) fbClock0 = performance.now() - song.currentTime * 1000; else return 0; }
+  let t = (performance.now() - fbClock0) / 1000;
+  const err = song.currentTime - t; // slew gently toward the song instead of jumping
+  if (!song.paused && song.currentTime > 0) { if (Math.abs(err) > .3) fbClock0 = performance.now() - song.currentTime * 1000; else fbClock0 -= err * 1000 * .03; }
+  return (performance.now() - fbClock0) / 1000;
+}
+function fbFire(prev, t) {
   if (t - prev > 1 || t < prev) return;
   if (voicesOn) for (const [id, c] of VOICE) if (c > prev && c <= t) { const v = voices[id]; v.currentTime = 0; v.play().catch(() => { }); }
-  for (const [id, c] of SFX) if (c > prev && c <= t) { const s = sfx[id].cloneNode(); s.volume = .5; s.play().catch(() => { }); }
+  for (const [id, c] of SFX) if (c > prev && c <= t) { const s = sfx[id][sfxFlip ^= 1]; s.currentTime = 0; s.volume = .55; s.play().catch(() => { }); }
 }
-let prevWall = performance.now(), audioPrev = 0;
-function loop() {
-  const wall = performance.now(), dt = Math.min(.05, (wall - prevWall) / 1000); prevWall = wall;
-  let t = playing ? now() : 2.0 + (wall / 1000) % 2;
-  if (playing && !paused && !song.paused && Math.abs(song.currentTime - t) > .08 && song.currentTime > 0) { clock0 = performance.now() - song.currentTime * 1000; t = now(); }
-  if (playing) {
-    fireAudio(audioPrev, t); audioPrev = t;
-    song.volume += ((speaking(t) ? .38 : .85) - song.volume) * .08;
-    if (t >= END) { playing = false; showOverlay('▶ Play again!'); }
-  }
-  frame(playing ? t : 3.0 + (wall / 1000 % 1) * 0, dt);
-  requestAnimationFrame(loop);
+
+// --- transport ---
+let playing = false, paused = false, pausedAt = 0;
+function now() {
+  if (paused) return pausedAt;
+  return useWebAudio ? waClock() : fbClock();
 }
-const overlay = document.getElementById('overlay'), playBtn = document.getElementById('play');
-function showOverlay(label) { playBtn.textContent = label; overlay.classList.remove('hidden'); song.pause(); }
 function start() {
-  overlay.classList.add('hidden'); for (const v of Object.values(voices)) v.pause();
-  song.currentTime = 0; song.play().catch(() => { }); clock0 = performance.now(); audioPrev = -.01; lastT = -.01; paused = false; playing = true;
+  overlay.classList.add('hidden'); lastT = -.01; paused = false; playing = true; pauseBtn.textContent = '⏸ Pause';
+  camState.shot = -1;
+  if (useWebAudio) { actx.resume(); schedule(); }
+  else {
+    initFallback(); for (const v of Object.values(voices)) v.pause();
+    // unlock all elements inside the user gesture (iOS)
+    for (const a of [...Object.values(voices), ...Object.values(sfx).flat()]) { a.muted = true; a.play().then(() => { a.pause(); a.muted = false; }).catch(() => { }); }
+    song.currentTime = 0; fbClock0 = null; fbPrev = 0; song.play().catch(() => { });
+  }
 }
-playBtn.onclick = start;
-document.getElementById('restart').onclick = start;
+function showOverlay(label) { playBtn.textContent = label; delete playBtn.dataset.wait; overlay.classList.remove('hidden'); if (useWebAudio) { for (const s of sources) { try { s.stop(); } catch (e) { } } } else song?.pause(); }
+playBtn.onclick = () => { if (audioReady) start(); };
+document.getElementById('restart').onclick = () => { if (audioReady) start(); };
 const pauseBtn = document.getElementById('pause');
 pauseBtn.onclick = () => {
   if (!playing) return;
-  if (!paused) { pausedAt = now(); paused = true; song.pause(); for (const v of Object.values(voices)) v.pause(); pauseBtn.textContent = '▶ Resume'; }
-  else { paused = false; clock0 = performance.now() - pausedAt * 1000; song.currentTime = pausedAt; song.play(); pauseBtn.textContent = '⏸ Pause'; }
+  if (!paused) {
+    pausedAt = now(); paused = true; pauseBtn.textContent = '▶ Resume';
+    if (useWebAudio) actx.suspend(); else { song.pause(); for (const v of Object.values(voices)) v.pause(); }
+  } else {
+    paused = false; pauseBtn.textContent = '⏸ Pause';
+    if (useWebAudio) actx.resume(); else { song.currentTime = pausedAt; fbClock0 = performance.now() - pausedAt * 1000; song.play(); }
+  }
 };
-document.getElementById('voices').onchange = e => { voicesOn = e.target.checked; };
-addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); overlay.classList.contains('hidden') ? pauseBtn.click() : start(); } });
+document.getElementById('voices').onchange = e => { voicesOn = e.target.checked; if (useWebAudio && voiceGain) voiceGain.gain.setTargetAtTime(voicesOn ? 1 : 0, actx.currentTime, .05); };
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); overlay.classList.contains('hidden') ? pauseBtn.click() : (audioReady && start()); } });
 
-if (STILL !== null) {
+// --- adaptive quality: keep motion smooth on slower devices ---
+let ftAvg = 16, qLevel = 0, qTimer = 0;
+function adaptQuality(dtMs) {
+  ftAvg += (dtMs - ftAvg) * .05; qTimer += dtMs;
+  if (qTimer > 2500 && ftAvg > 24 && qLevel < 3) {
+    qLevel++; qTimer = 0;
+    if (qLevel === 1) { renderer.setPixelRatio(1); resize(); }
+    if (qLevel === 2) { bokeh.enabled = false; }
+    if (qLevel === 3) { renderer.setPixelRatio(.75); resize(); bloom.enabled = false; }
+    console.log('quality level', qLevel, 'avg frame ms', ftAvg.toFixed(1));
+  }
+}
+
+window.__cartoon = { now: () => now(), info: () => ({ ctx: actx && actx.state, web: useWebAudio, sources: sources.length, q: qLevel, ft: +ftAvg.toFixed(1), loaded: Object.keys(BUF).length }) };
+let prevWall = performance.now(), idleDrawn = -1e9;
+function loop() {
+  const wall = performance.now(), dtMs = wall - prevWall, dt = Math.min(.05, dtMs / 1000); prevWall = wall;
+  if (playing && !paused) adaptQuality(dtMs);
+  let t;
+  if (playing) {
+    t = Math.max(0, now());
+    if (!useWebAudio && !paused) { fbFire(fbPrev, t); fbPrev = t; }
+    if (t >= END) { playing = false; showOverlay('▶ Play again!'); }
+  } else t = 3.0;
+  if (playing || wall - idleDrawn > 400) { frame(t, paused ? 0 : dt); if (!playing) idleDrawn = wall; } // idle title screen: redraw rarely so loading stays fast
+  requestAnimationFrame(loop);
+}
+
+if (params.has('analyze')) {
+  overlay.style.display = 'none';
+  const rows = []; const dt = 1 / 30;
+  for (let t = 0; t < END; t += dt) {
+    const ks = stateK(t), ms = stateM(t), cs = stateC(t);
+    K.root.position.set(ks.x, ks.y, ks.z); K.root.rotation.y = ks.rot; M.root.position.set(ms.x, ms.y, ms.z); M.root.rotation.y = ms.rot;
+    C.root.position.copy(cs.pos); C.root.rotation.y = cs.rot; C.root.visible = cs.vis;
+    K.update(t, dt, ks.pose); M.update(t, dt, ms.pose); C.update(t, dt, cs.pose);
+    K.root.updateMatrixWorld(true); M.root.updateMatrixWorld(true); C.root.updateMatrixWorld(true);
+    let shot = 0; while (shot < SHOTS.length - 1 && t >= SHOTS[shot + 1][0]) shot++;
+    const look = directCamera(t, dt);
+    const f = v => [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)];
+    rows.push({ t: +t.toFixed(3), shot, cam: f(camera.position), look: f(look), fov: camera.fov, K: [ks.x, ks.y, ks.z, ks.rot].map(x => +x.toFixed(3)), M: [ms.x, ms.y, ms.z, ms.rot].map(x => +x.toFixed(3)), C: [...f(cs.pos), +cs.rot.toFixed(3)], kh: f(wp(K.anchors.headTop)), mh: f(wp(M.anchors.headTop)) });
+  }
+  const pre = document.createElement('pre'); pre.id = 'out'; pre.textContent = JSON.stringify(rows); document.body.appendChild(pre); document.title = 'analyzed';
+} else if (STILL !== null) {
   overlay.style.display = 'none';
   const t0 = Math.max(0, STILL - 2.5);
   for (let t = t0; t < STILL; t += 1 / 30) { lastT = t - 1 / 30; frameSim(t); }
